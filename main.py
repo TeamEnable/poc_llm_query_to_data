@@ -44,36 +44,18 @@ def call_llm(messages: list[dict]) -> str:
     """
     try:
         resp = _client.chat.completions.create(
-            model="gpt-4o-mini",      # good cost/latency for CSV emission
+            model="gpt-4o-mini",  # good cost/latency for CSV emission
             messages=messages,
             temperature=0,
             top_p=1,
             max_tokens=1500,
-            seed=42,                  # improves reproducibility across runs
+            seed=42,  # improves reproducibility across runs
         )
         return resp.choices[0].message.content or ""
     except Exception as e:
         # Let the driver handle retries/logging
         raise RuntimeError(f"OpenAI API error: {e}")
 
-
-# def validate_with_subprocess(payload: str) -> tuple[bool, list[str]]:
-#     p = subprocess.Popen(
-#         [sys.executable, "validator_csv.py"],
-#         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-#         text=True
-#     )
-#     out, err = p.communicate(payload, timeout=30)
-#     ok = (p.returncode == 0)
-#     errors = []
-#     if not ok:
-#         # first line is "INVALID", subsequent lines are errors
-#         lines = [ln for ln in out.splitlines() if ln.strip()]
-#         if len(lines) >= 2:
-#             errors = lines[1:]
-#         else:
-#             errors = ["unknown validation error"]
-#     return ok, errors
 
 def run_once():
     messages = [
@@ -86,7 +68,10 @@ def run_once():
         errors, data = parse_and_validate(reply)
         if not errors:
             dict_rows = csv_rows_to_dicts(data)
-            emit(dict_rows, CsvSink(path="out/countries.csv", headers=["country","capital"]))
+            emit(
+                dict_rows,
+                CsvSink(path="out/countries.csv", headers=["country", "capital"]),
+            )
             return "OUTPUT OK"
 
         # build correction message and retry
@@ -97,9 +82,9 @@ def run_once():
         )
         messages.append({"role": "assistant", "content": reply})
         messages.append({"role": "user", "content": correction})
-        
+
     # if still failing
-    raise RuntimeError(f"Validation failed after {RETRY_LIMIT+1} attempts.")
+    raise RuntimeError(f"Validation failed after {RETRY_LIMIT + 1} attempts.")
 
 
 if __name__ == "__main__":

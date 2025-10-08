@@ -3,6 +3,7 @@ import csv, io, sys, re
 HEADER = ["country", "capital"]
 ROW_COUNT = 20
 
+
 def extract_code_fence(text: str) -> str:
     """
     Extracts content from a single ```csv ... ``` block if present.
@@ -11,10 +12,12 @@ def extract_code_fence(text: str) -> str:
     m = re.search(r"```csv\s*(.*?)```", text, flags=re.DOTALL | re.IGNORECASE)
     return m.group(1).strip() if m else text.strip()
 
+
 def read_csv_strict(csv_text: str):
     # RFC4180-ish parsing via Python's csv—handles quotes and commas
     data = list(csv.reader(io.StringIO(csv_text)))
     return data
+
 
 def validate(data: list[list[str]]) -> list[str]:
     errs = []
@@ -42,11 +45,13 @@ def validate(data: list[list[str]]) -> list[str]:
     # minimal UTF-8 sanity (this will raise if invalid when coming from bytes; here assume str OK)
     return errs
 
+
 def parse_and_validate(text: str):
     inner = extract_code_fence(text)
     data = read_csv_strict(inner)
     errors = validate(data)
     return errors, data
+
 
 if __name__ == "__main__":
     raw = sys.stdin.read()

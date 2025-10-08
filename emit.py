@@ -3,6 +3,7 @@ from sinks import Sink, Row
 
 HEADERS = ["country", "capital"]
 
+
 def csv_rows_to_dicts(matrix: List[List[str]]) -> List[Row]:
     """
     Convert parsed CSV matrix (including header row) into list[dict].
@@ -11,6 +12,7 @@ def csv_rows_to_dicts(matrix: List[List[str]]) -> List[Row]:
     header = matrix[0]
     rows = matrix[1:]
     return [dict(zip(header, r)) for r in rows]
+
 
 def emit(rows: Iterable[Row], sink: Sink) -> None:
     sink.open()

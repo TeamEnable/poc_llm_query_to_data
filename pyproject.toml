@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "openai>=2.0.1",
+    "ruff>=0.14.0",
 ]
