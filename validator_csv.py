@@ -32,17 +32,17 @@ def validate(data: list[list[str]]) -> list[str]:
     if len(rows) != ROW_COUNT:
         errs.append(f"row count mismatch: expected {ROW_COUNT}, got {len(rows)}")
 
-    # shape check
-    for i, row in enumerate(rows, start=2):  # 1-based header, so rows start at line 2
-        if len(row) != 2:
-            errs.append(f"line {i}: expected 2 columns, got {len(row)} ({row})")
+    expected_cols = len(header)  # <— was hardcoded 2
+    for i, row in enumerate(rows, start=2):  # data rows start at line 2
+        if len(row) != expected_cols:
+            errs.append(
+                f"line {i}: expected {expected_cols} columns, got {len(row)} ({row})"
+            )
 
-    # alphabetical check on country
-    countries = [r[0] for r in rows if len(r) == 2]
-    if countries != sorted(countries, key=lambda s: s):
-        errs.append("rows not sorted A→Z by country")
-
-    # minimal UTF-8 sanity (this will raise if invalid when coming from bytes; here assume str OK)
+    # alphabetical check on first column (generic)
+    first_col = [r[0] for r in rows if len(r) == expected_cols]
+    if first_col != sorted(first_col, key=lambda s: s):
+        errs.append("rows not sorted A→Z by first column")
     return errs
 
 
