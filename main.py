@@ -44,15 +44,17 @@ except Exception as e:
 def build_system_prompt(headers: list[str],
                         row_count: int | None = None,
                         sort_by: str | None = None) -> str:
+    if not sort_by:
+        sort_by = headers[0]
+    
     lines = [
         "You are a data emitter. Return ONLY valid CSV inside one single ```csv fenced block.",
         f"Header MUST be exactly: {','.join(headers)}",
         "Use RFC4180 quoting rules: quote fields that contain commas or quotes; escape quotes by doubling them.",
+        f"SORT rows alphabetically by {sort_by} (A→Z).",
     ]
     if row_count is not None:
         lines.append(f"Exactly {row_count} data rows (no more, no less).")
-    if sort_by:
-        lines.append(f"Sort rows alphabetically by {sort_by} (A→Z).")
     return "\n".join(lines)
 
 
@@ -90,10 +92,10 @@ def run_once(prompt: str,
 
     for attempt in range(RETRY_LIMIT + 1):
         reply = call_llm(messages)
-        errors, data = parse_and_validate(reply, headers, row_count)
+        errors, data = parse_and_validate(reply, headers, sort_by, row_count)
         if not errors:
             dict_rows = csv_rows_to_dicts(data)
-            print(dict_rows)
+            # print(dict_rows)
             # actual write happens with emit() -> the right sink
             emit(
                 dict_rows,
@@ -124,8 +126,8 @@ def cli_run(
     prompt: str = typer.Argument(
         ..., help="User prompt for gathering/generating data."
     ),
-    headers: list[str] = typer.Argument(
-        ..., help="Names of columns to use for the tabular data.",
+    columns: list[str] = typer.Option(
+        "--columns", "--col", help="Name of column to use for the tabular data.",
     ),
     output: Path = typer.Option(
         "out/data.csv", "--output", "-o", help="Destination file path."
@@ -142,15 +144,20 @@ def cli_run(
 ) -> None:
     """
     Calls the existing run_once() using the provided prompt and writes raw CSV to --output.
+    Example: python main.py "Produce the list of countries and their capitals." --col "country" --col "capital" --sort-by "country" --rows 25
     """
-    # --rows 50 --sort-by state
+    if not sort_by:
+        sort_by = columns[0]
+    
+    msg = f"▶ Running with prompt: {prompt!r} - Output details: {output}; {columns}"
+    if sort_by == columns[0]:
+        msg = f"{msg}, sort by 1st column"
+    else:
+        msg = f"{msg}, sort by column '{sort_by}'"
+    typer.echo(msg, err=True)
 
-    typer.echo(
-        f"▶ Running with prompt: {prompt!r} - Output details: {output}; {headers}",
-        err=True,
-    )
     try:
-        status = run_once(prompt, headers, row_count, sort_by, output)
+        status = run_once(prompt, headers=columns, row_count=row_count, sort_by=sort_by, output=output)
     except Exception as e:
         typer.echo(f"❌ Generation failed: {e}", err=True)
         raise typer.Exit(code=2)
