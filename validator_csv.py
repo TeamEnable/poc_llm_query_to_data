@@ -1,8 +1,5 @@
 import csv, io, sys, re
 
-HEADER = ["country", "capital"]
-ROW_COUNT = 20
-
 
 def extract_code_fence(text: str) -> str:
     """
@@ -19,18 +16,18 @@ def read_csv_strict(csv_text: str):
     return data
 
 
-def validate(data: list[list[str]]) -> list[str]:
+def validate(data: list[list[str]], headers: list[str], row_count: int) -> list[str]:
     errs = []
     if not data:
         return ["empty CSV"]
     header = data[0]
     rows = data[1:]
 
-    if header != HEADER:
-        errs.append(f"header mismatch: expected {HEADER}, got {header}")
+    if header != headers:
+        errs.append(f"header mismatch: expected {headers}, got {header}")
 
-    if len(rows) != ROW_COUNT:
-        errs.append(f"row count mismatch: expected {ROW_COUNT}, got {len(rows)}")
+    if len(rows) != row_count:
+        errs.append(f"row count mismatch: expected {row_count}, got {len(rows)}")
 
     expected_cols = len(header)  # <— was hardcoded 2
     for i, row in enumerate(rows, start=2):  # data rows start at line 2
@@ -46,10 +43,10 @@ def validate(data: list[list[str]]) -> list[str]:
     return errs
 
 
-def parse_and_validate(text: str):
+def parse_and_validate(text: str, headers: list[str], row_count: int):
     inner = extract_code_fence(text)
     data = read_csv_strict(inner)
-    errors = validate(data)
+    errors = validate(data, headers, row_count)
     return errors, data
 
 
