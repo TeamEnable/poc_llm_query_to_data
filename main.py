@@ -51,7 +51,7 @@ def build_system_prompt(headers: list[str],
         "You are a data emitter. Return ONLY valid CSV inside one single ```csv fenced block.",
         f"Header MUST be exactly: {','.join(headers)}",
         "Use RFC4180 quoting rules: quote fields that contain commas or quotes; escape quotes by doubling them.",
-        f"SORT rows alphabetically by {sort_by} (A→Z).",
+        f"You MUST sort rows alphabetically by {sort_by} (A→Z).",
     ]
     if row_count is not None:
         lines.append(f"Exactly {row_count} data rows (no more, no less).")
