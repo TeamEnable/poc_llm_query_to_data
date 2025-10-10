@@ -36,7 +36,7 @@ def load_df(file_obj) -> pd.DataFrame:
 # Gradio UI
 # =============================================================
 with gr.Blocks(title="Demo UX — Prompt") as demo:
-    gr.Markdown("# Demo UX — Prompt")
+    gr.Markdown("# Demo UX — Prompt to Table")
 
     with gr.Tabs():
         # ------------------ TAB 1: PROMPT ➜ TABLE ------------------
