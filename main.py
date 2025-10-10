@@ -40,15 +40,13 @@ def cli_run(
 
     msg = f"▶ Running with prompt: {prompt!r} - Output details: {output}; {columns}"
     if sort_by == columns[0]:
-        msg = f"{msg}, sort by 1st column"
+        msg = f"{msg}, we will sort by 1st column"
     else:
-        msg = f"{msg}, sort by column '{sort_by}'"
+        msg = f"{msg}, we will sort by column '{sort_by}'"
     typer.echo(msg, err=True)
 
     try:
-        status = run_once(
-            prompt, headers=columns, row_count=row_count, sort_by=sort_by, output=output
-        )
+        status = run_once(prompt, columns=columns, row_count=row_count, output=output)
     except Exception as e:
         typer.echo(f"❌ Generation failed: {e}", err=True)
         raise typer.Exit(code=2)

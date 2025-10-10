@@ -1,4 +1,7 @@
-import csv, io, sys, re
+import csv
+import io
+import sys
+import re
 
 
 def extract_code_fence(text: str) -> str:
@@ -16,9 +19,7 @@ def read_csv_strict(csv_text: str):
     return data
 
 
-def validate(
-    data: list[list[str]], headers: list[str], sort_by: str, row_count: int
-) -> list[str]:
+def validate(data: list[list[str]], headers: list[str], row_count: int) -> list[str]:
     errs = []
     if not data:
         return ["empty CSV"]
@@ -40,21 +41,13 @@ def validate(
                 f"line {i}: expected {expected_cols} columns, got {len(row)} ({row})"
             )
 
-    # alphabetical check on sort_by column (generic)
-    sort_by_index = headers.index(sort_by)
-    sort_by_col = [r[sort_by_index] for r in rows if len(r) == expected_cols]
-    # print(sort_by_col)
-    # print(sorted(sort_by_col, key=lambda s: s))
-    # if sort_by_col != sorted(sort_by_col, key=lambda s: s):
-    #     errs.append("rows not sorted A→Z by first column")
-    # print(errs)
     return errs
 
 
-def parse_and_validate(text: str, headers: list[str], sort_by: str, row_count: int):
+def parse_and_validate(text: str, headers: list[str], row_count: int):
     inner = extract_code_fence(text)
     data = read_csv_strict(inner)
-    errors = validate(data, headers, sort_by, row_count)
+    errors = validate(data, headers, row_count)
     return errors, data
 
 
