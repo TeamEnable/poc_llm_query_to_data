@@ -16,7 +16,9 @@ def read_csv_strict(csv_text: str):
     return data
 
 
-def validate(data: list[list[str]], headers: list[str], sort_by: str, row_count: int) -> list[str]:
+def validate(
+    data: list[list[str]], headers: list[str], sort_by: str, row_count: int
+) -> list[str]:
     errs = []
     if not data:
         return ["empty CSV"]

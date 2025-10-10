@@ -41,12 +41,12 @@ except Exception as e:
     print(e)
 
 
-def build_system_prompt(headers: list[str],
-                        row_count: int | None = None,
-                        sort_by: str | None = None) -> str:
+def build_system_prompt(
+    headers: list[str], row_count: int | None = None, sort_by: str | None = None
+) -> str:
     if not sort_by:
         sort_by = headers[0]
-    
+
     lines = [
         "You are a data emitter. Return ONLY valid CSV inside one single ```csv fenced block.",
         f"Header MUST be exactly: {','.join(headers)}",
@@ -78,11 +78,13 @@ def call_llm(messages: list[dict]) -> str:
         raise RuntimeError(f"OpenAI API error: {e}")
 
 
-def run_once(prompt: str,
-             headers: list[str],
-             row_count: int | None = None,
-             sort_by: str | None = None,
-             output: str = "out/data.csv") -> str:
+def run_once(
+    prompt: str,
+    headers: list[str],
+    row_count: int | None = None,
+    sort_by: str | None = None,
+    output: str = "out/data.csv",
+) -> str:
     """ """
     system_prompt = build_system_prompt(headers, row_count, sort_by)
     messages = [
@@ -127,14 +129,14 @@ def cli_run(
         ..., help="User prompt for gathering/generating data."
     ),
     columns: list[str] = typer.Option(
-        "--columns", "--col", help="Name of column to use for the tabular data.",
+        "--columns",
+        "--col",
+        help="Name of column to use for the tabular data.",
     ),
     output: Path = typer.Option(
         "out/data.csv", "--output", "-o", help="Destination file path."
     ),
-    row_count: int = typer.Option(
-        20, "--rows", "-f", help="Number of rows."
-    ),
+    row_count: int = typer.Option(20, "--rows", "-f", help="Number of rows."),
     sort_by: str = typer.Option(
         "", "--sort-by", "-f", help="Name of column to sort by."
     ),
@@ -148,7 +150,7 @@ def cli_run(
     """
     if not sort_by:
         sort_by = columns[0]
-    
+
     msg = f"▶ Running with prompt: {prompt!r} - Output details: {output}; {columns}"
     if sort_by == columns[0]:
         msg = f"{msg}, sort by 1st column"
@@ -157,7 +159,9 @@ def cli_run(
     typer.echo(msg, err=True)
 
     try:
-        status = run_once(prompt, headers=columns, row_count=row_count, sort_by=sort_by, output=output)
+        status = run_once(
+            prompt, headers=columns, row_count=row_count, sort_by=sort_by, output=output
+        )
     except Exception as e:
         typer.echo(f"❌ Generation failed: {e}", err=True)
         raise typer.Exit(code=2)
