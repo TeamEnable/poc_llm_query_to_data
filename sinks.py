@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Protocol, Iterable, Dict, List, runtime_checkable, Optional
-import csv, sqlite3, os
+import csv
+import sqlite3
+import os
 
 Row = Dict[str, str]  # e.g., {"country": "...", "capital": "..."}
 
