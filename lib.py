@@ -1,5 +1,5 @@
 from validator_csv import parse_and_validate
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 from sinks import Sink, Row, CsvSink
 
 
@@ -82,6 +82,7 @@ def run_once(
     columns: list[str],
     row_count: int | None = None,
     output: str = "out/data.csv",
+    schema_fields: Optional[list[str]] = None,
 ) -> str:
     """ """
     system_prompt = build_system_prompt(columns, row_count)
@@ -101,7 +102,8 @@ def run_once(
                 dict_rows,
                 CsvSink(path=output, headers=columns),
             )
-            return f"OUTPUT OK TO {output}"
+            # return f"OUTPUT OK TO {output}"
+            return output
 
         # build correction message and retry
         # prepare correction
