@@ -36,7 +36,8 @@ def build_system_prompt(headers: list[str], row_count: int | None = None) -> str
         "Use RFC4180 quoting rules: quote fields that contain commas or quotes; escape quotes by doubling them.",
     ]
     if row_count is not None:
-        lines.append(f"Exactly {row_count} data rows (no more, no less).")
+        lines.append(f"Return exactly {row_count} data rows, in addition to the header row.")
+
     return "\n".join(lines)
 
 
@@ -127,8 +128,6 @@ def run_once(
                 dict_rows,
                 CsvSink(path=output, headers=columns),
             )
-            # return f"OUTPUT OK TO {output}"
-            # return output
             success = True
             break
 
