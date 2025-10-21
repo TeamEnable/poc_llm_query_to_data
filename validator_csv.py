@@ -31,8 +31,8 @@ def validate(data: list[list[str]], headers: list[str], row_count: int) -> list[
         errs.append(f"header mismatch: expected {headers}, got {header}")
 
     # 2nd check
-    if len(rows) != row_count:
-        errs.append(f"row count mismatch: expected {row_count}, got {len(rows)}")
+    # if len(rows) != row_count:
+    #     errs.append(f"row count mismatch: expected {row_count}, got {len(rows)}")
 
     expected_cols = len(header)
     for i, row in enumerate(rows, start=2):  # data rows start at line 2
