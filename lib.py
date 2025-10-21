@@ -1,5 +1,5 @@
 from validator_csv import parse_and_validate
-from typing import List, Iterable, Optional, Sequence, Tuple, Dict, Any
+from typing import List, Iterable, Optional, Dict, Any
 import pandas as pd
 
 from sinks import Sink, Row, CsvSink
@@ -148,10 +148,23 @@ def run_once(
     # Load the dataframe from the CSV -> This is what we return
     df = pd.read_csv(output)
 
+    # right after generation, before projection
+    produced = list(df.columns)
+
     # --- contract projection (only if provided) ---
     if schema_fields:
         df, proj = _apply_schema_projection(df, schema_fields)
         info["projection"] = proj
+
+        print(
+            f"[schema] produced={produced} | kept={proj['kept']} | added_null={proj['added_empty']} "
+            f"| dropped={proj['dropped']}"
+        )
+        
+        if proj["missing_fields"]:
+            print(f"[schema] filled with NULL: {proj['missing_fields']}")
+        if proj["dropped_fields"]:
+            print(f"[schema] dropped extras: {proj['dropped_fields']}")
 
     # keep returning a DataFrame for sinks, with optional info for CLI logs
     return df.reset_index(drop=True), info

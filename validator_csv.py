@@ -48,6 +48,7 @@ def parse_and_validate(text: str, headers: list[str], row_count: int):
     inner = extract_code_fence(text)
     data = read_csv_strict(inner)
     errors = validate(data, headers, row_count)
+    print(errors)
     return errors, data
 
 
