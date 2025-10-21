@@ -37,11 +37,12 @@ def cli_run(
     prompt: str = typer.Argument(
         ..., help="User prompt for gathering/generating data."
     ),
-    columns: list[str] = typer.Option(
-        "--columns",
-        "--col",
-        help="Name of column to use for the tabular data.",
-    ),
+    # columns: list[str] = typer.Option(
+    #     "--columns",
+    #     "--col",
+    #     help="Name of column to use for the tabular data.",
+    # ),
+    col: list[str] = typer.Option(None, "--col", help="Name of column to use for the tabular data."),
     output: Path = typer.Option(
         "out/data.csv", "--output", "-o", help="Destination file path."
     ),
@@ -62,7 +63,7 @@ def cli_run(
     schema_fields = _parse_schema(schema_json, schema_file)
 
     # columns = generator hint; if no columns but we do have a schema, use schema as hint
-    columns_hint = columns or (schema_fields or [])
+    columns_hint = col or (schema_fields or [])
 
     if not sort_by:
         sort_by = columns_hint[0]
@@ -86,7 +87,8 @@ def cli_run(
         typer.echo(f"❌ Generation failed: {e}", err=True)
         raise typer.Exit(code=2)
 
-    typer.echo(f"OUTPUT ✅ TO {res}")
+    typer.echo(f"OUTPUT ✅: {res[1]}")
+    typer.echo(res[0].head())
 
 
 if __name__ == "__main__":
