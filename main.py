@@ -37,11 +37,6 @@ def cli_run(
     prompt: str = typer.Argument(
         ..., help="User prompt for gathering/generating data."
     ),
-    # columns: list[str] = typer.Option(
-    #     "--columns",
-    #     "--col",
-    #     help="Name of column to use for the tabular data.",
-    # ),
     col: list[str] = typer.Option(None, "--col", help="Name of column to use for the tabular data."),
     output: Path = typer.Option(
         "out/data.csv", "--output", "-o", help="Destination file path."
