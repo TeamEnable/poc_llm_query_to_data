@@ -1,7 +1,8 @@
 from validator_csv import parse_and_validate
-from typing import List, Iterable
-from sinks import Sink, Row, CsvSink
+from typing import List, Iterable, Optional, Dict, Any
+import pandas as pd
 
+from sinks import Sink, Row, CsvSink
 
 from openai import OpenAI
 
@@ -35,7 +36,8 @@ def build_system_prompt(headers: list[str], row_count: int | None = None) -> str
         "Use RFC4180 quoting rules: quote fields that contain commas or quotes; escape quotes by doubling them.",
     ]
     if row_count is not None:
-        lines.append(f"Exactly {row_count} data rows (no more, no less).")
+        lines.append(f"Return exactly {row_count} data rows, in addition to the header row.")
+
     return "\n".join(lines)
 
 
@@ -77,13 +79,38 @@ def emit(rows: Iterable[Row], sink: Sink) -> None:
         sink.close()
 
 
+def _apply_schema_projection(df: pd.DataFrame, schema_fields: list[str]) -> tuple[pd.DataFrame, dict]:
+    out_cols, missing = {}, []
+    for name in schema_fields:
+        if name in df.columns:
+            out_cols[name] = df[name]
+        else:
+            out_cols[name] = pd.Series([pd.NA] * len(df))  # <-- was ""
+            missing.append(name)
+
+    dropped = [c for c in df.columns if c not in schema_fields]
+    info = {
+        "kept": len(schema_fields) - len(missing),
+        "added_empty": len(missing),
+        "dropped": len(dropped),
+        "missing_fields": missing,
+        "dropped_fields": dropped,
+    }
+    return pd.DataFrame(out_cols), info
+
+
 def run_once(
     prompt: str,
     columns: list[str],
     row_count: int | None = None,
     output: str = "out/data.csv",
+    schema_fields: Optional[list[str]] = None, # contract (optional)
 ) -> str:
     """ """
+    # Variables needed
+    success: bool = False
+    info: Dict[str, Any] = {}
+
     system_prompt = build_system_prompt(columns, row_count)
     messages = [
         {"role": "system", "content": system_prompt},
@@ -101,7 +128,8 @@ def run_once(
                 dict_rows,
                 CsvSink(path=output, headers=columns),
             )
-            return f"OUTPUT OK TO {output}"
+            success = True
+            break
 
         # build correction message and retry
         # prepare correction
@@ -113,4 +141,29 @@ def run_once(
         messages.append({"role": "user", "content": correction})
 
     # if still failing
-    raise RuntimeError(f"Validation failed after {RETRY_LIMIT + 1} attempts.")
+    if not success:
+        raise RuntimeError(f"Validation failed after {RETRY_LIMIT + 1} attempts.")
+
+    # Load the dataframe from the CSV -> This is what we return
+    df = pd.read_csv(output)
+
+    # right after generation, before projection
+    produced = list(df.columns)
+
+    # --- contract projection (only if provided) ---
+    if schema_fields:
+        df, proj = _apply_schema_projection(df, schema_fields)
+        info["projection"] = proj
+
+        print(
+            f"[schema] produced={produced} | kept={proj['kept']} | added_null={proj['added_empty']} "
+            f"| dropped={proj['dropped']}"
+        )
+        
+        if proj["missing_fields"]:
+            print(f"[schema] filled with NULL: {proj['missing_fields']}")
+        if proj["dropped_fields"]:
+            print(f"[schema] dropped extras: {proj['dropped_fields']}")
+
+    # keep returning a DataFrame for sinks, with optional info for CLI logs
+    return df.reset_index(drop=True), info
