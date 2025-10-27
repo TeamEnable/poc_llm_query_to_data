@@ -40,53 +40,49 @@ def test_csvsink_write_before_open_raises(tmp_path):
     assert "CsvSink not opened" in str(exc.value)
 
 
-def test_sqlitesink_inserts_rows_and_creates_table(tmp_path):
-    db_path = tmp_path / "t.db"
-    table = "records"
-    schema = {"colA": "TEXT", "colB": "TEXT", "colC": "TEXT"}
+def test_sqlite_sink_creates_table_and_inserts_rows(tmp_path):
+    db_path = tmp_path / "test.sqlite"
+    table = "countries"
+    columns = ["country", "capital"]
+
     rows = [
-        {"colA": "A", "colB": "x", "colC": "u"},
-        {"colA": "B", "colB": "y", "colC": "v"},
+        {"country": "France", "capital": "Paris"},
+        {"country": "Spain"},  # capital omitted on purpose -> should become NULL
     ]
 
-    sink = sinks.SQLiteSink(
-        str(db_path), table=table, schema=schema, if_not_exists=True
-    )
-    sink.open()
-    try:
-        sink.write(rows)
-    finally:
-        sink.close()
+    # Act: write rows
+    with sinks.SqliteSink(str(db_path), table=table, columns=columns) as s:
+        s.write(rows)
 
-    # Verify with a fresh connection
-    con = sqlite3.connect(str(db_path))
-    try:
-        # table exists?
-        cur = con.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (table,),
-        )
-        assert cur.fetchone() is not None
+    # Assert: table exists, rows present, values correct
+    con = sqlite3.connect(db_path)
+    cur = con.cursor()
 
-        # row count
-        cnt = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        assert cnt == 2
+    # 1) table exists
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    assert cur.fetchone() == (table,)
 
-        # content matches column order defined in schema
-        fetched = con.execute(
-            f"SELECT colA, colB, colC FROM {table} ORDER BY colA"
-        ).fetchall()
-        assert fetched == [("A", "x", "u"), ("B", "y", "v")]
-    finally:
-        con.close()
+    # 2) row count
+    cur.execute(f"SELECT COUNT(*) FROM {table}")
+    assert cur.fetchone()[0] == 2
+
+    # 3) values (order by country for determinism)
+    cur.execute(f"SELECT country, capital FROM {table} ORDER BY country ASC")
+    data = cur.fetchall()
+    assert data == [
+        ("France", "Paris"),
+        ("Spain", None),  # missing key -> NULL
+    ]
+
+    con.close()
 
 
 def test_sqlitesink_write_before_open_raises(tmp_path):
     db_path = tmp_path / "x.db"
-    sink = sinks.SQLiteSink(str(db_path), table="t", schema={"a": "TEXT"})
+    sink = sinks.SqliteSink(str(db_path), table="t", schema={"a": "TEXT"})
     with pytest.raises(AssertionError) as exc:
         sink.write([{"a": "v"}])
-    assert "SQLiteSink not opened" in str(exc.value)
+    assert "SqliteSink not opened" in str(exc.value)
 
 
 def test_nullsink_noop(tmp_path):
