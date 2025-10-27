@@ -147,6 +147,11 @@ def build_ui() -> gr.Blocks:
 
             columns = _parse_cols(columns_csv)
             schema_fields = _parse_schema_json(schema_json)
+
+            # small optim: pass schema through as columns, if no columns provided
+            if not columns and schema_fields:
+                columns = schema_fields[:]
+
             sort_by_val = (sort_by or "").strip() or None
 
             # Build sink kwargs only when SQLite is selected (keeps CSV path authoritative)
