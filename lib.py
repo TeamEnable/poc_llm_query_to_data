@@ -75,7 +75,7 @@ def emit(rows: Iterable[Row], sink: Sink) -> None:
     try:
         with sink:
             sink.write(rows)
-        return "Success: {type(sink)}"
+        return f"Success: {type(sink)}"
     except Exception as e:
         return f"Failure: {e}"
 
@@ -166,24 +166,26 @@ def run_once(
         {"role": "user", "content": prompt},
     ]
 
+    # Normalize explicit columns (may be empty if user left it blank in the UX)
+    explicit_cols = [c.strip() for c in (columns or []) if str(c).strip()]
+    schema_cols  = [c.strip() for c in (schema_fields or []) if str(c).strip()]
+
+    # Use schema when columns are empty
+    effective_cols = explicit_cols or schema_cols
+
     for attempt in range(RETRY_LIMIT + 1):
         reply = call_llm(messages)
-        errors, data = parse_and_validate(reply, columns, row_count)
+        errors, data = parse_and_validate(reply, effective_cols, row_count)
         if not errors:
             # 1) LLM CSV text -> dict rows
             dict_rows = csv_rows_to_dicts(data)
 
-            # 2) Build DF directly (respect requested order from `columns`)
+            # 2) Build DF directly
             df_raw = pd.DataFrame(dict_rows)
             df_raw = _normalize_df_headers(df_raw)
 
-            # Decide target fields: explicit `columns` > `schema_fields` > current df columns
-            if columns:
-                target_fields = [c.strip() for c in columns]
-            elif schema_fields:
-                target_fields = [c.strip() for c in schema_fields]
-            else:
-                target_fields = list(df_raw.columns)
+            # Decide target fields *consistently* (columns > schema > produced)
+            target_fields = effective_cols or list(df_raw.columns)
 
             # 3) Project
             df_proj = _project_dataframe(df_raw, target_fields)
@@ -202,6 +204,7 @@ def run_once(
             rows_to_emit = _records_for_sink(df_proj, sink_kind)
             print("Ready to persist data received from LLM")
             status = emit(rows_to_emit, sink)
+            print(status)
 
             if "Success" in status:
                 success = True
