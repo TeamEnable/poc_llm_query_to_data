@@ -84,25 +84,6 @@ def emit_df(df, sink: Sink) -> None:
     return emit(df.to_dict(orient="records"), sink)
 
 
-# def _apply_schema_projection(df: pd.DataFrame, schema_fields: list[str]) -> tuple[pd.DataFrame, dict]:
-#     out_cols, missing = {}, []
-#     for name in schema_fields:
-#         if name in df.columns:
-#             out_cols[name] = df[name]
-#         else:
-#             out_cols[name] = pd.Series([pd.NA] * len(df))  # <-- was ""
-#             missing.append(name)
-
-#     dropped = [c for c in df.columns if c not in schema_fields]
-#     info = {
-#         "kept": len(schema_fields) - len(missing),
-#         "added_empty": len(missing),
-#         "dropped": len(dropped),
-#         "missing_fields": missing,
-#         "dropped_fields": dropped,
-#     }
-#     return pd.DataFrame(out_cols), info
-
 # -----------------------
 # Helpers for projection
 # -----------------------
