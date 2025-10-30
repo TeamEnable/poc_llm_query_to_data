@@ -61,6 +61,17 @@ def cli_run(
     sqlite_db: Optional[Path] = typer.Option(None, "--sqlite-db", help="SQLite DB file (defaults to output with .sqlite)."),
     sqlite_table: Optional[str] = typer.Option(None, "--sqlite-table", help="Target table (defaults to CSV stem or 'data')."),
     sqlite_replace: bool = typer.Option(False, "--sqlite-replace", help="DROP & recreate table before insert."),
+    # --- UPSERT options ---
+    sqlite_upsert_keys: list[str] = typer.Option(
+        None,
+        "--sqlite-upsert-key",
+        help="Repeatable. Columns forming the unique key for UPSERT.",
+    ),
+    sqlite_upsert_update: Optional[str] = typer.Option(
+        "all",
+        "--sqlite-upsert-update",
+        help="UPSERT policy: 'all', 'none', or comma-separated columns (e.g., 'capital,continent').",
+    ),
     debug: bool = typer.Option(False, "--debug", help="Print parsed options/values for debugging"),
 ) -> None:
     """
@@ -81,6 +92,8 @@ def cli_run(
             "sqlite_db": sqlite_db,
             "sqlite_table": sqlite_table,
             "sqlite_replace": sqlite_replace,
+            "sqlite_upsert_keys": sqlite_upsert_keys,
+            "sqlite_upsert_update": sqlite_upsert_update,
         }
         normalized = {k: _normalize_for_json(v) for k, v in raw_params.items()}
         typer.echo("[DEBUG] CLI params:\n" + json.dumps(normalized, indent=2))
@@ -93,7 +106,7 @@ def cli_run(
     if not sort_by:
         sort_by = columns_hint[0]
 
-    msg = f"▶ Running with prompt: {prompt!r} - Output details: {format}, {output}, {columns_hint}"
+    msg = f"▶ Running with prompt: {prompt!r} - Output details: {format}, {columns_hint}"
     if sort_by == columns_hint[0]:
         msg = f"{msg}, we will sort by 1st column"
     else:
@@ -103,11 +116,19 @@ def cli_run(
     # Only pass sink params for the SQLite case (keeps CSV path identical)
     sink_kwargs = {}
     if format == "sqlite":
+        # Parse upsert update policy
+        if sqlite_upsert_update and sqlite_upsert_update not in ("all", "none"):
+            update_spec = [c.strip() for c in sqlite_upsert_update.split(",") if c.strip()]
+        else:
+            update_spec = sqlite_upsert_update or "all"
+        
         sink_kwargs = {
             "sink": "sqlite",
             "sqlite_db": str(sqlite_db) if sqlite_db else None,
             "sqlite_table": sqlite_table,
             "sqlite_replace": sqlite_replace,
+            "sqlite_upsert_keys": list(sqlite_upsert_keys) if sqlite_upsert_keys else None,
+            "sqlite_upsert_update": update_spec,  # "all" | "none" | List[str]
         }
 
     try:
@@ -117,7 +138,7 @@ def cli_run(
             row_count=row_count,
             output=output,
             schema_fields=schema_fields,
-            **sink_kwargs,    # only used when format == "sqlite"
+            **sink_kwargs,
         )
     except Exception as e:
         typer.echo(f"❌ Generation failed: {e}", err=True)

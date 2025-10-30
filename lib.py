@@ -2,6 +2,8 @@ from validator_csv import parse_and_validate
 from typing import List, Iterable, Optional, Dict, Any
 import pandas as pd
 
+from pathlib import Path
+
 from sinks import Sink, Row, CsvSink, SqliteSink
 
 from openai import OpenAI
@@ -197,7 +199,14 @@ def run_once(
                 db_path = sink_kwargs.get("sqlite_db") or str(Path(output).with_suffix(".sqlite"))
                 table = sink_kwargs.get("sqlite_table") or (Path(output).stem or "data")
                 replace = bool(sink_kwargs.get("sqlite_replace", False))
-                sink = SqliteSink(db_path, table, columns=target_fields, replace_table=replace)
+                sink = SqliteSink(
+                    db_path, 
+                    table, 
+                    columns=target_fields, 
+                    replace_table=replace,
+                    upsert_keys=sink_kwargs.get("sqlite_upsert_keys"),
+                    upsert_update=sink_kwargs.get("sqlite_upsert_update"),
+                    )
             else:
                 sink = CsvSink(path=output, headers=target_fields)
 
