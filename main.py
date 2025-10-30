@@ -27,9 +27,17 @@ def _parse_schema(schema_json: Optional[str], schema_file: Optional[Path]) -> li
     return uniq
 
 
+def _normalize_for_json(v):
+    if isinstance(v, Path):
+        return str(v)
+    if isinstance(v, tuple):
+        return list(v)
+    return v
+
 app = typer.Typer(help="LLM → Structured Data — CLI")
 
-OutputFormat = Literal["csv"]  # keep only CSV for now
+# OutputFormat = Literal["csv"]  # keep only CSV for now
+OutputFormat = Literal["csv", "sqlite"]
 
 
 @app.command("run")
@@ -37,7 +45,7 @@ def cli_run(
     prompt: str = typer.Argument(
         ..., help="User prompt for gathering/generating data."
     ),
-    col: list[str] = typer.Option(None, "--col", help="Name of column to use for the tabular data."),
+    columns: list[str] = typer.Option(None, "--col", help="Name of column to use for the tabular data."),
     output: Path = typer.Option(
         "out/data.csv", "--output", "-o", help="Destination file path."
     ),
@@ -46,44 +54,77 @@ def cli_run(
         "", "--sort-by", "-f", help="Name of column to sort by."
     ),
     format: OutputFormat = typer.Option(
-        "csv", "--format", "-f", help="Output format (currently only CSV)."
+        "csv", "--format", "-f", help="Output format (csv by default)."
     ),
     schema_json: Optional[str] = typer.Option(None, "--schema-json"),
     schema_file: Optional[Path] = typer.Option(None, "--schema-file"),
+    sqlite_db: Optional[Path] = typer.Option(None, "--sqlite-db", help="SQLite DB file (defaults to output with .sqlite)."),
+    sqlite_table: Optional[str] = typer.Option(None, "--sqlite-table", help="Target table (defaults to CSV stem or 'data')."),
+    sqlite_replace: bool = typer.Option(False, "--sqlite-replace", help="DROP & recreate table before insert."),
+    debug: bool = typer.Option(False, "--debug", help="Print parsed options/values for debugging"),
 ) -> None:
     """
     Calls the existing run_once() using the provided prompt and writes raw CSV to --output.
     Example: python main.py "Produce the list of countries and their capitals." --col "country" --col "capital" --sort-by "country" --rows 25
     """
+    # ---- DEBUG DUMP (before any transformations) ----
+    if debug:
+        raw_params = {
+            "prompt": prompt,
+            "columns": columns,      # Typer gives a tuple when multiple=True
+            "output": output,
+            "row_count": row_count,
+            "sort_by": sort_by,
+            "format": format,
+            "schema_json": schema_json,
+            "schema_file": schema_file,
+            "sqlite_db": sqlite_db,
+            "sqlite_table": sqlite_table,
+            "sqlite_replace": sqlite_replace,
+        }
+        normalized = {k: _normalize_for_json(v) for k, v in raw_params.items()}
+        typer.echo("[DEBUG] CLI params:\n" + json.dumps(normalized, indent=2))
+
     schema_fields = _parse_schema(schema_json, schema_file)
 
     # columns = generator hint; if no columns but we do have a schema, use schema as hint
-    columns_hint = col or (schema_fields or [])
+    columns_hint = columns or (schema_fields or [])
 
     if not sort_by:
         sort_by = columns_hint[0]
 
-    msg = f"▶ Running with prompt: {prompt!r} - Output details: {output}; {columns_hint}"
+    msg = f"▶ Running with prompt: {prompt!r} - Output details: {format}, {output}, {columns_hint}"
     if sort_by == columns_hint[0]:
         msg = f"{msg}, we will sort by 1st column"
     else:
         msg = f"{msg}, we will sort by column '{sort_by}'"
     typer.echo(msg, err=True)
 
+    # Only pass sink params for the SQLite case (keeps CSV path identical)
+    sink_kwargs = {}
+    if format == "sqlite":
+        sink_kwargs = {
+            "sink": "sqlite",
+            "sqlite_db": str(sqlite_db) if sqlite_db else None,
+            "sqlite_table": sqlite_table,
+            "sqlite_replace": sqlite_replace,
+        }
+
     try:
-        res = run_once(
+        df, status = run_once(
             prompt, 
             columns=columns_hint,
             row_count=row_count,
             output=output,
-            schema_fields=schema_fields
+            schema_fields=schema_fields,
+            **sink_kwargs,    # only used when format == "sqlite"
         )
     except Exception as e:
         typer.echo(f"❌ Generation failed: {e}", err=True)
         raise typer.Exit(code=2)
 
-    typer.echo(f"OUTPUT ✅: {res[1]}")
-    typer.echo(res[0].head())
+    typer.echo(f"OUTPUT ✅: {status}")
+    typer.echo(df.head())
 
 
 if __name__ == "__main__":
