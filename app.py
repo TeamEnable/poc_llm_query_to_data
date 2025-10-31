@@ -108,6 +108,25 @@ def build_ui() -> gr.Blocks:
                 value=False,
             )
 
+        # --- UPSERT options (SQLite only) ---
+        with gr.Row(visible=False) as sqlite_upsert_opts:
+            upsert_keys_in = gr.Textbox(
+                label="UPSERT keys (comma-separated)",
+                placeholder="e.g., iso2 or country,iso2",
+                value="",
+            )
+            upsert_policy = gr.Dropdown(
+                label="UPSERT update policy",
+                choices=["all", "none", "only listed columns"],
+                value="all",
+            )
+        with gr.Row(visible=False) as sqlite_upsert_cols_row:
+            upsert_cols_in = gr.Textbox(
+                label="Columns to update on conflict (comma-separated)",
+                placeholder="e.g., capital,continent",
+                value="",
+            )
+
         with gr.Row():
             gen_btn = gr.Button("Generate", variant="primary")
             status = gr.Markdown(visible=False)
@@ -121,9 +140,24 @@ def build_ui() -> gr.Blocks:
 
         # Toggle SQLite options visibility
         def _toggle_sqlite(sink: str):
-            return gr.update(visible=(sink == "sqlite"))
+            vis = (sink == "sqlite")
+            # sqlite_opts, sqlite_upsert_opts, sqlite_upsert_cols_row
+            return (
+                gr.update(visible=vis),
+                gr.update(visible=vis),
+                gr.update(visible=False),  # columns list hidden by default
+            )
 
-        sink_choice.change(_toggle_sqlite, inputs=[sink_choice], outputs=[sqlite_opts])
+        sink_choice.change(
+            _toggle_sqlite,
+            inputs=[sink_choice],
+            outputs=[sqlite_opts, sqlite_upsert_opts, sqlite_upsert_cols_row],
+        )
+
+        def _toggle_upsert_cols(policy: str):
+            return gr.update(visible=(policy == "only listed columns"))
+        
+        upsert_policy.change(_toggle_upsert_cols, inputs=[upsert_policy], outputs=[sqlite_upsert_cols_row])
 
         # Core handler
         def on_generate(
@@ -137,6 +171,9 @@ def build_ui() -> gr.Blocks:
             db_path: str | None,
             table: str | None,
             replace_tbl: bool,
+            upsert_keys_text: str,
+            upsert_policy_val: str,
+            upsert_cols_text: str,
         ):
             if not prompt or not str(prompt).strip():
                 raise gr.Error("Please provide a prompt.")
@@ -157,11 +194,23 @@ def build_ui() -> gr.Blocks:
             # Build sink kwargs only when SQLite is selected (keeps CSV path authoritative)
             sink_kwargs = {}
             if sink == "sqlite":
+                # Start by parsing UPSERT keys
+                keys = [c.strip() for c in (upsert_keys_text or "").split(",") if c.strip()]
+                # Parse UPSERT policy
+                if upsert_policy_val == "all":
+                    update_spec = "all"
+                elif upsert_policy_val == "none":
+                    update_spec = "none"
+                else:
+                    update_spec = [c.strip() for c in (upsert_cols_text or "").split(",") if c.strip()]
+
                 sink_kwargs = {
                     "sink": "sqlite",
                     "sqlite_db": db_path or None,
                     "sqlite_table": table or None,
                     "sqlite_replace": bool(replace_tbl),
+                    "sqlite_upsert_keys": keys or None,
+                    "sqlite_upsert_update": update_spec,  # "all" | "none" | list[str]
                 }
 
             # Delegate to lib.run_once (now with sort_by)
@@ -186,6 +235,8 @@ def build_ui() -> gr.Blocks:
                     row_count=len(df),
                 )
             )
+            if sink == "sqlite" and (keys or upsert_policy_val != "all"):
+                msg_bits.append(f"UPSERT → keys: {keys or '—'} | policy: {upsert_policy_val if upsert_policy_val != 'only listed columns' else upsert_cols_text}")
 
             # Projection info (if present)
             proj = (info or {}).get("projection")
@@ -216,6 +267,9 @@ def build_ui() -> gr.Blocks:
                 sqlite_db,
                 sqlite_table,
                 sqlite_replace,
+                upsert_keys_in,
+                upsert_policy,
+                upsert_cols_in,
             ],
             outputs=[status, tbl_out],
         )
