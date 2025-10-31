@@ -1,6 +1,17 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Protocol, Iterable, Dict, List, runtime_checkable, Optional, Mapping, Any
+from typing import (
+    Protocol,
+    Iterable,
+    Dict,
+    List,
+    Literal,
+    Self,
+    Union,
+    runtime_checkable,
+    Optional,
+    Mapping,
+    Any,
+)
 import csv
 import sqlite3
 import os
@@ -17,7 +28,9 @@ class Sink(Protocol):
     def write(self, rows: Iterable[Row]) -> None: ...
     def close(self) -> None: ...
     def __enter__(self) -> Self: ...
-    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: Any) -> bool: ...
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: Any
+    ) -> bool: ...
 
 
 class SinkCM:
@@ -95,6 +108,7 @@ class CsvSink(SinkCM):
 # SQLite sink
 # ----------------------------
 
+
 def _qident(name: str) -> str:
     """Quote an identifier for SQLite with double quotes.
     Very small helper; does not allow embedded quotes to avoid SQLi on identifiers.
@@ -117,6 +131,7 @@ class SqliteSink(SinkCM):
         replace_table: If True, DROP TABLE IF EXISTS before creating it (overrides if_not_exists behavior).
         journal_wal: If True, set PRAGMA journal_mode=WAL for better concurrent reads.
         batch_size: Number of rows to buffer before executing `executemany`.
+        ...
 
     Notes:
         - Unknown keys in incoming rows are ignored; missing keys are inserted as NULL.
@@ -134,6 +149,8 @@ class SqliteSink(SinkCM):
         replace_table: bool = False,
         journal_wal: bool = True,
         batch_size: int = 500,
+        upsert_keys: Optional[List[str]] = None,
+        upsert_update: Union[List[str], Literal["all", "none"]] = "all",
     ):
         if schema is None and columns is None:
             raise ValueError("Provide at least one of `columns` or `schema`.")
@@ -143,13 +160,22 @@ class SqliteSink(SinkCM):
         self.db_path = db_path
         self.table = table
         self.columns = columns
-        self.schema = dict(schema) if schema is not None else {c: "TEXT" for c in columns}
+        self.schema = (
+            dict(schema) if schema is not None else {c: "TEXT" for c in columns}
+        )
         self.if_not_exists = if_not_exists
         self.replace_table = replace_table
         self.journal_wal = journal_wal
         self.batch_size = batch_size
         self._conn: Optional[sqlite3.Connection] = None
         self._pending: List[List[Any]] = []
+        # upsert config
+        self.upsert_keys = list(upsert_keys) if upsert_keys else None
+        self.upsert_update = upsert_update
+        if self.upsert_keys:
+            missing = [k for k in self.upsert_keys if k not in self.columns]
+            if missing:
+                raise ValueError(f"upsert_keys not in columns: {missing}")
 
     # context manager sugar provided by Sink protocol defaults
 
@@ -171,9 +197,42 @@ class SqliteSink(SinkCM):
         cur.execute(f"CREATE TABLE {ine}{_qident(self.table)} ({cols_sql})")
         self._conn.commit()
 
+        # Ensure UNIQUE index for upserts
+        if self.upsert_keys:
+            idx_name = f"{self.table}__uniq__{'__'.join(self.upsert_keys)}"
+            cur.execute(
+                f"CREATE UNIQUE INDEX IF NOT EXISTS {_qident(idx_name)} ON {_qident(self.table)} ("
+                + ", ".join(_qident(k) for k in self.upsert_keys)
+                + ")"
+            )
+            self._conn.commit()
+
         placeholders = ", ".join(["?" for _ in self.columns])
         cols_list = ", ".join([_qident(c) for c in self.columns])
-        self._insert_sql = f"INSERT INTO {_qident(self.table)} ({cols_list}) VALUES ({placeholders})"
+        if not self.upsert_keys:
+            self._insert_sql = f"INSERT INTO {_qident(self.table)} ({cols_list}) VALUES ({placeholders})"
+        else:
+            non_keys = [c for c in self.columns if c not in self.upsert_keys]
+            if isinstance(self.upsert_update, list):
+                update_cols = [c for c in self.upsert_update if c in non_keys]
+            elif self.upsert_update == "all":
+                update_cols = non_keys
+            else:
+                update_cols = []
+            conflict = ", ".join(_qident(k) for k in self.upsert_keys)
+            if update_cols:
+                set_clause = ", ".join(
+                    f"{_qident(c)}=excluded.{_qident(c)}" for c in update_cols
+                )
+                self._insert_sql = (
+                    f"INSERT INTO {_qident(self.table)} ({cols_list}) VALUES ({placeholders}) "
+                    f"ON CONFLICT({conflict}) DO UPDATE SET {set_clause}"
+                )
+            else:
+                self._insert_sql = (
+                    f"INSERT INTO {_qident(self.table)} ({cols_list}) VALUES ({placeholders}) "
+                    f"ON CONFLICT({conflict}) DO NOTHING"
+                )
 
     def _flush(self) -> None:
         if not self._pending:

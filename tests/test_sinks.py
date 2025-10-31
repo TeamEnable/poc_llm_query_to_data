@@ -59,7 +59,9 @@ def test_sqlite_sink_creates_table_and_inserts_rows(tmp_path):
     cur = con.cursor()
 
     # 1) table exists
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    )
     assert cur.fetchone() == (table,)
 
     # 2) row count
@@ -83,6 +85,38 @@ def test_sqlitesink_write_before_open_raises(tmp_path):
     with pytest.raises(AssertionError) as exc:
         sink.write([{"a": "v"}])
     assert "SqliteSink not opened" in str(exc.value)
+
+
+def test_sqlite_upsert_on_iso2(tmp_path):
+    db = tmp_path / "t.sqlite"
+    rows1 = [
+        {"country": "France", "capital": "Paris", "iso2": "FR", "continent": "Europe"}
+    ]
+    rows2 = [
+        {"country": "France", "capital": "PARIS", "iso2": "FR", "continent": "Europe"}
+    ]  # changed capital
+
+    from sinks import SqliteSink
+
+    with SqliteSink(
+        str(db),
+        "countries",
+        columns=["country", "capital", "iso2", "continent"],
+        upsert_keys=["iso2"],
+        upsert_update="all",
+    ) as s:
+        s.write(rows1)
+        s.write(rows2)
+
+    import sqlite3
+
+    con = sqlite3.connect(db)
+    cur = con.cursor()
+    cur.execute("SELECT country, capital FROM countries WHERE iso2='FR'")
+    assert cur.fetchone() == ("France", "PARIS")  # updated
+    cur.execute("SELECT COUNT(*) FROM countries")
+    assert cur.fetchone()[0] == 1  # no duplicate
+    con.close()
 
 
 def test_nullsink_noop(tmp_path):

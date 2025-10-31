@@ -13,9 +13,7 @@ def test_header_mismatch():
     data = make_data(
         ["c1", "c2", "c3"], [["a", "x", "u"], ["b", "y", "v"], ["c", "z", "w"]]
     )
-    errs = validator.validate(
-        data, headers=["c1", "c2", "c4"], row_count=3
-    )
+    errs = validator.validate(data, headers=["c1", "c2", "c4"], row_count=3)
     assert any("header mismatch" in e for e in errs)
 
 
@@ -39,9 +37,7 @@ def test_shape_error_reports_line_number():
             ["c", "z", "w"],
         ],
     )
-    errs = validator.validate(
-        data, headers=["c1", "c2", "c3"], row_count=3
-    )
+    errs = validator.validate(data, headers=["c1", "c2", "c3"], row_count=3)
     assert any("expected 3 columns" in e for e in errs)
     assert any("line 3:" in e for e in errs)
 
@@ -55,7 +51,4 @@ def test_happy_path_no_errors():
             ["c", "z", "w"],
         ],
     )
-    assert (
-        validator.validate(data, headers=["c1", "c2", "c3"], row_count=3)
-        == []
-    )
+    assert validator.validate(data, headers=["c1", "c2", "c3"], row_count=3) == []

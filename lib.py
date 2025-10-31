@@ -2,6 +2,8 @@ from validator_csv import parse_and_validate
 from typing import List, Iterable, Optional, Dict, Any
 import pandas as pd
 
+from pathlib import Path
+
 from sinks import Sink, Row, CsvSink, SqliteSink
 
 from openai import OpenAI
@@ -36,7 +38,9 @@ def build_system_prompt(headers: list[str], row_count: int | None = None) -> str
         "Use RFC4180 quoting rules: quote fields that contain commas or quotes; escape quotes by doubling them.",
     ]
     if row_count is not None:
-        lines.append(f"Return exactly {row_count} data rows, in addition to the header row.")
+        lines.append(
+            f"Return exactly {row_count} data rows, in addition to the header row."
+        )
 
     return "\n".join(lines)
 
@@ -88,11 +92,13 @@ def emit_df(df, sink: Sink) -> None:
 # Helpers for projection
 # -----------------------
 
+
 def _normalize_df_headers(df: pd.DataFrame) -> pd.DataFrame:
     """Trim whitespace on column names."""
     df = df.copy()
     df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
     return df
+
 
 def _project_dataframe(df: pd.DataFrame, target_fields: list[str]) -> pd.DataFrame:
     """
@@ -109,9 +115,12 @@ def _project_dataframe(df: pd.DataFrame, target_fields: list[str]) -> pd.DataFra
             data[f] = pd.Series([None] * len(df), index=df.index)
     return pd.DataFrame(data, index=df.index)
 
-def _projection_report(df_before: pd.DataFrame, df_after: pd.DataFrame, target_fields: list[str]) -> Dict[str, Any]:
+
+def _projection_report(
+    df_before: pd.DataFrame, df_after: pd.DataFrame, target_fields: list[str]
+) -> Dict[str, Any]:
     before_cols = [str(c) for c in df_before.columns]
-    after_cols  = [str(c) for c in df_after.columns]
+    after_cols = [str(c) for c in df_after.columns]
     kept = [c for c in after_cols if c in before_cols]
     added_empty = [c for c in after_cols if c not in before_cols]
     dropped = [c for c in before_cols if c not in after_cols]
@@ -123,6 +132,7 @@ def _projection_report(df_before: pd.DataFrame, df_after: pd.DataFrame, target_f
         "missing_fields": added_empty,
         "dropped_fields": dropped,
     }
+
 
 def _records_for_sink(df: pd.DataFrame, sink_kind: str) -> list[dict]:
     """
@@ -139,6 +149,7 @@ def _records_for_sink(df: pd.DataFrame, sink_kind: str) -> list[dict]:
 # -----------------------
 # Orchestrator
 # -----------------------
+
 
 def run_once(
     prompt: str,
@@ -168,7 +179,7 @@ def run_once(
 
     # Normalize explicit columns (may be empty if user left it blank in the UX)
     explicit_cols = [c.strip() for c in (columns or []) if str(c).strip()]
-    schema_cols  = [c.strip() for c in (schema_fields or []) if str(c).strip()]
+    schema_cols = [c.strip() for c in (schema_fields or []) if str(c).strip()]
 
     # Use schema when columns are empty
     effective_cols = explicit_cols or schema_cols
@@ -194,10 +205,19 @@ def run_once(
             # 4) Persist via selected sink
             sink_kind = sink_kwargs.get("sink", "csv")
             if sink_kind == "sqlite":
-                db_path = sink_kwargs.get("sqlite_db") or str(Path(output).with_suffix(".sqlite"))
+                db_path = sink_kwargs.get("sqlite_db") or str(
+                    Path(output).with_suffix(".sqlite")
+                )
                 table = sink_kwargs.get("sqlite_table") or (Path(output).stem or "data")
                 replace = bool(sink_kwargs.get("sqlite_replace", False))
-                sink = SqliteSink(db_path, table, columns=target_fields, replace_table=replace)
+                sink = SqliteSink(
+                    db_path,
+                    table,
+                    columns=target_fields,
+                    replace_table=replace,
+                    upsert_keys=sink_kwargs.get("sqlite_upsert_keys"),
+                    upsert_update=sink_kwargs.get("sqlite_upsert_update"),
+                )
             else:
                 sink = CsvSink(path=output, headers=target_fields)
 

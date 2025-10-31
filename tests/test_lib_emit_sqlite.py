@@ -3,15 +3,18 @@ import pandas as pd
 from lib import emit_df
 from sinks import SqliteSink
 
+
 def test_emit_sqlite_creates_table_and_inserts(tmp_path):
     df = pd.DataFrame([{"country": "France", "capital": "Paris"}, {"country": "Spain"}])
 
     status = emit_df(
         df,
-        sink=SqliteSink(tmp_path / "demo.sqlite", "countries", 
-        columns=["country", "capital"],
-        replace_table=True
-        )
+        sink=SqliteSink(
+            tmp_path / "demo.sqlite",
+            "countries",
+            columns=["country", "capital"],
+            replace_table=True,
+        ),
     )
     assert "Success" in status
 
