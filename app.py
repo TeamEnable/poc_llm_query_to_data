@@ -39,12 +39,16 @@ def _status_for_sink(
     sqlite_db: str | None,
     sqlite_table: str | None,
     row_count: int,
+    docx_path: str | None = None,
 ) -> str:
     if sink == "sqlite":
         # mirror lib defaults if not provided
         db = sqlite_db or str(Path(csv_out).with_suffix(".sqlite"))
         table = sqlite_table or (Path(csv_out).stem or "data")
         return f"SQLite: {db} — table '{table}' with {row_count} rows"
+    elif sink == "docx":
+        path = docx_path or str(Path(csv_out).with_suffix(".docx"))
+        return f"DOCX written to: {path} (rows: {row_count})"
     return f"CSV written to: {csv_out}"
 
 
@@ -82,7 +86,7 @@ def build_ui() -> gr.Blocks:
 
         with gr.Row():
             sink_choice = gr.Radio(
-                choices=["csv", "sqlite"],
+                choices=["csv", "sqlite", "docx"],
                 value="csv",
                 label="Sink",
             )
@@ -127,6 +131,12 @@ def build_ui() -> gr.Blocks:
                 value="",
             )
 
+        # Docx options row (hidden until docx selected)
+        with gr.Row(visible=False) as docx_opts:
+            docx_path = gr.Textbox(label="DOCX path", value="out/data.docx")
+            docx_title = gr.Textbox(label="DOCX title", value="Generated Data")
+
+        # Generate button
         with gr.Row():
             gen_btn = gr.Button("Generate", variant="primary")
             status = gr.Markdown(visible=False)
@@ -138,20 +148,21 @@ def build_ui() -> gr.Blocks:
             label="Preview (first 10 rows)",
         )
 
-        # Toggle SQLite options visibility
+        # Toggle SQLite / DOCX options visibility
         def _toggle_sqlite(sink: str):
-            vis = sink == "sqlite"
-            # sqlite_opts, sqlite_upsert_opts, sqlite_upsert_cols_row
+            is_sqlite = (sink == "sqlite")
+            is_docx = (sink == "docx")
             return (
-                gr.update(visible=vis),
-                gr.update(visible=vis),
-                gr.update(visible=False),  # columns list hidden by default
-            )
+                gr.update(visible=is_sqlite),          # sqlite_opts
+                gr.update(visible=is_sqlite),          # sqlite_upsert_opts (if present)
+                gr.update(visible=False),              # sqlite_upsert_cols_row
+                gr.update(visible=is_docx),            # docx_opts
+             )
 
         sink_choice.change(
             _toggle_sqlite,
             inputs=[sink_choice],
-            outputs=[sqlite_opts, sqlite_upsert_opts, sqlite_upsert_cols_row],
+            outputs=[sqlite_opts, sqlite_upsert_opts, sqlite_upsert_cols_row, docx_opts],
         )
 
         def _toggle_upsert_cols(policy: str):
@@ -178,6 +189,8 @@ def build_ui() -> gr.Blocks:
             upsert_keys_text: str,
             upsert_policy_val: str,
             upsert_cols_text: str,
+            docx_path_val: str | None,
+            docx_title_val: str | None,
         ):
             if not prompt or not str(prompt).strip():
                 raise gr.Error("Please provide a prompt.")
@@ -221,6 +234,13 @@ def build_ui() -> gr.Blocks:
                     "sqlite_replace": bool(replace_tbl),
                     "sqlite_upsert_keys": keys or None,
                     "sqlite_upsert_update": update_spec,  # "all" | "none" | list[str]
+                }
+
+            if sink == "docx":
+                sink_kwargs = {
+                    "sink": "docx",
+                    "docx_path": docx_path_val or None,
+                    "docx_title": docx_title_val or None,
                 }
 
             # Delegate to lib.run_once (now with sort_by)
@@ -282,6 +302,8 @@ def build_ui() -> gr.Blocks:
                 upsert_keys_in,
                 upsert_policy,
                 upsert_cols_in,
+                docx_path,
+                docx_title,
             ],
             outputs=[status, tbl_out],
         )
