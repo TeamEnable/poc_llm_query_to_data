@@ -43,8 +43,7 @@ def _normalize_for_json(v):
 
 app = typer.Typer(help="LLM → Structured Data — CLI")
 
-# OutputFormat = Literal["csv"]  # keep only CSV for now
-OutputFormat = Literal["csv", "sqlite"]
+OutputFormat = Literal["csv", "sqlite", "docx"]
 
 
 @app.command("run")
@@ -87,6 +86,10 @@ def cli_run(
         "--sqlite-upsert-update",
         help="UPSERT policy: 'all', 'none', or comma-separated columns (e.g., 'capital,continent').",
     ),
+    # DOCX (optional)
+    docx_path: Optional[Path] = typer.Option(None, "--docx-path", help="Destination .docx (defaults to output with .docx)"),
+    docx_title: Optional[str] = typer.Option(None, "--docx-title", help="Title/heading in the DOCX"),
+    # Other
     debug: bool = typer.Option(
         False, "--debug", help="Print parsed options/values for debugging"
     ),
@@ -111,6 +114,8 @@ def cli_run(
             "sqlite_replace": sqlite_replace,
             "sqlite_upsert_keys": sqlite_upsert_keys,
             "sqlite_upsert_update": sqlite_upsert_update,
+            "docx_path": docx_path,
+            "docx_title": docx_title,
         }
         normalized = {k: _normalize_for_json(v) for k, v in raw_params.items()}
         typer.echo("[DEBUG] CLI params:\n" + json.dumps(normalized, indent=2))
@@ -152,6 +157,12 @@ def cli_run(
             if sqlite_upsert_keys
             else None,
             "sqlite_upsert_update": update_spec,  # "all" | "none" | List[str]
+        }
+    elif format == "docx":
+        sink_kwargs = {
+            "sink": "docx",
+            "docx_path": str(docx_path) if docx_path else None,
+            "docx_title": docx_title,
         }
 
     try:

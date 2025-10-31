@@ -9,6 +9,7 @@ dependencies = [
     "openai>=2.0.1",
     "pandas>=2.3.3",
     "pytest>=8.4.2",
+    "python-docx>=1.2.0",
     "ruff>=0.14.0",
     "typer[all]>=0.19.2",
 ]

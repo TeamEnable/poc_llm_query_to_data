@@ -125,3 +125,16 @@ def test_nullsink_noop(tmp_path):
     s.write([{"anything": "goes"}])
     s.close()
     # Nothing to assert—just ensure no exceptions
+
+
+def test_docx_sink_handles_none_as_empty(tmp_path):
+    out = tmp_path / "none.docx"
+    headers = ["a", "b"]
+    rows = [{"a": "x", "b": None}]
+    with sinks.DocxSink(str(out), headers=headers, title=None) as s:
+        s.write(rows)
+
+    from docx import Document
+    doc = Document(out)
+    table = doc.tables[0]
+    assert table.cell(1, 1).text == ""  # None -> ""

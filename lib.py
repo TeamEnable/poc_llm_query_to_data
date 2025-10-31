@@ -4,7 +4,7 @@ import pandas as pd
 
 from pathlib import Path
 
-from sinks import Sink, Row, CsvSink, SqliteSink
+from sinks import Sink, Row, CsvSink, SqliteSink, DocxSink
 
 from openai import OpenAI
 
@@ -142,7 +142,7 @@ def _records_for_sink(df: pd.DataFrame, sink_kind: str) -> list[dict]:
     """
     if sink_kind == "sqlite":
         return df.where(pd.notna(df), None).to_dict(orient="records")
-    # CSV
+    # CSV (also fine for DOCX)
     return df.where(pd.notna(df), "").to_dict(orient="records")
 
 
@@ -218,6 +218,10 @@ def run_once(
                     upsert_keys=sink_kwargs.get("sqlite_upsert_keys"),
                     upsert_update=sink_kwargs.get("sqlite_upsert_update"),
                 )
+            elif sink_kind == "docx":
+                docx_path = sink_kwargs.get("docx_path") or str(Path(output).with_suffix(".docx"))
+                docx_title = sink_kwargs.get("docx_title") or "Generated Data"
+                sink = DocxSink(path=docx_path, headers=target_fields, title=docx_title)
             else:
                 sink = CsvSink(path=output, headers=target_fields)
 

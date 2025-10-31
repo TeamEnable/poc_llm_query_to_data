@@ -270,3 +270,82 @@ class NullSink(SinkCM):
 
     def close(self) -> None:  # pragma: no cover - trivial
         pass
+
+
+# ----------------------------
+# Docx sink
+# ----------------------------
+try:
+    from docx import Document  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    Document = None  # type: ignore
+
+
+class DocxSink(SinkCM):
+    """Write rows to a .docx file as a table.
+
+    Args:
+        path: Destination .docx path.
+        headers: Column order to render. Extra keys in rows are ignored; missing keys become empty.
+        title: Optional heading text at the top of the document.
+        style: Optional Word table style name (e.g., 'Light List Accent 1').
+        autofit: If True, let Word auto-fit columns.
+    Notes:
+        - This sink buffers rows in memory and writes the document on close().
+        - Requires the optional dependency: `python-docx`.
+    """
+
+    def __init__(
+        self,
+        path: str,
+        headers: List[str],
+        *,
+        title: Optional[str] = None,
+        style: Optional[str] = None,
+        autofit: bool = True,
+    ):
+        self.path = path
+        self.headers = headers
+        self.title = title
+        self.style = style
+        self.autofit = autofit
+        self._rows: List[Row] = []
+
+    def open(self) -> None:
+        if Document is None:
+            raise RuntimeError(
+                "python-docx is required for DocxSink. Install with: pip install python-docx"
+            )
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+
+    def write(self, rows: Iterable[Row]) -> None:
+        for r in rows:
+            self._rows.append({h: r.get(h, "") for h in self.headers})
+
+    def close(self) -> None:
+        if Document is None:
+            return  # should have raised in open(); guard anyway
+        doc = Document()
+        if self.title:
+            doc.add_heading(self.title, level=1)
+        # create table (+1 for header)
+        table = doc.add_table(rows=1 + len(self._rows), cols=len(self.headers))
+        if self.style:
+            try:
+                table.style = self.style
+            except Exception:
+                pass
+        table.autofit = self.autofit
+
+        # header row
+        for j, h in enumerate(self.headers):
+            table.cell(0, j).text = str(h)
+
+        # data rows
+        for i, row in enumerate(self._rows, start=1):
+            for j, h in enumerate(self.headers):
+                val = row.get(h, "")
+                table.cell(i, j).text = "" if val is None else str(val)
+
+        doc.save(self.path)
+        self._rows.clear()
