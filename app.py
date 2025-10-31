@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional, List
 
 import gradio as gr
-import pandas as pd
 
 from lib import run_once  # your updated run_once that accepts sort_by + sink kwargs
 
@@ -24,6 +23,7 @@ def _parse_schema_json(text: str | None) -> Optional[list[str]]:
     if not text or not text.strip():
         return None
     import json
+
     try:
         data = json.loads(text)
         if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
@@ -140,7 +140,7 @@ def build_ui() -> gr.Blocks:
 
         # Toggle SQLite options visibility
         def _toggle_sqlite(sink: str):
-            vis = (sink == "sqlite")
+            vis = sink == "sqlite"
             # sqlite_opts, sqlite_upsert_opts, sqlite_upsert_cols_row
             return (
                 gr.update(visible=vis),
@@ -156,8 +156,12 @@ def build_ui() -> gr.Blocks:
 
         def _toggle_upsert_cols(policy: str):
             return gr.update(visible=(policy == "only listed columns"))
-        
-        upsert_policy.change(_toggle_upsert_cols, inputs=[upsert_policy], outputs=[sqlite_upsert_cols_row])
+
+        upsert_policy.change(
+            _toggle_upsert_cols,
+            inputs=[upsert_policy],
+            outputs=[sqlite_upsert_cols_row],
+        )
 
         # Core handler
         def on_generate(
@@ -195,14 +199,20 @@ def build_ui() -> gr.Blocks:
             sink_kwargs = {}
             if sink == "sqlite":
                 # Start by parsing UPSERT keys
-                keys = [c.strip() for c in (upsert_keys_text or "").split(",") if c.strip()]
+                keys = [
+                    c.strip() for c in (upsert_keys_text or "").split(",") if c.strip()
+                ]
                 # Parse UPSERT policy
                 if upsert_policy_val == "all":
                     update_spec = "all"
                 elif upsert_policy_val == "none":
                     update_spec = "none"
                 else:
-                    update_spec = [c.strip() for c in (upsert_cols_text or "").split(",") if c.strip()]
+                    update_spec = [
+                        c.strip()
+                        for c in (upsert_cols_text or "").split(",")
+                        if c.strip()
+                    ]
 
                 sink_kwargs = {
                     "sink": "sqlite",
@@ -236,7 +246,9 @@ def build_ui() -> gr.Blocks:
                 )
             )
             if sink == "sqlite" and (keys or upsert_policy_val != "all"):
-                msg_bits.append(f"UPSERT → keys: {keys or '—'} | policy: {upsert_policy_val if upsert_policy_val != 'only listed columns' else upsert_cols_text}")
+                msg_bits.append(
+                    f"UPSERT → keys: {keys or '—'} | policy: {upsert_policy_val if upsert_policy_val != 'only listed columns' else upsert_cols_text}"
+                )
 
             # Projection info (if present)
             proj = (info or {}).get("projection")

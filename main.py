@@ -6,18 +6,24 @@ from typing import Literal, Optional
 from lib import run_once
 
 
-def _parse_schema(schema_json: Optional[str], schema_file: Optional[Path]) -> list[str] | None:
+def _parse_schema(
+    schema_json: Optional[str], schema_file: Optional[Path]
+) -> list[str] | None:
     if not schema_json and not schema_file:
         return None
     if schema_json and schema_file:
         raise typer.BadParameter("Use only one of --schema-json or --schema-file.")
-    raw = json.loads(Path(schema_file).read_text("utf-8")) if schema_file else json.loads(schema_json)
+    raw = (
+        json.loads(Path(schema_file).read_text("utf-8"))
+        if schema_file
+        else json.loads(schema_json)
+    )
     if isinstance(raw, list):
         fields = [str(x) for x in raw]
     elif isinstance(raw, dict) and isinstance(raw.get("fields"), list):
         fields = [str(x) for x in raw["fields"]]
     else:
-        raise typer.BadParameter("Schema must be a list or {\"fields\": [...]}.")
+        raise typer.BadParameter('Schema must be a list or {"fields": [...]}.')
 
     seen, uniq = set(), []
     for f in fields:
@@ -34,6 +40,7 @@ def _normalize_for_json(v):
         return list(v)
     return v
 
+
 app = typer.Typer(help="LLM → Structured Data — CLI")
 
 # OutputFormat = Literal["csv"]  # keep only CSV for now
@@ -45,7 +52,9 @@ def cli_run(
     prompt: str = typer.Argument(
         ..., help="User prompt for gathering/generating data."
     ),
-    columns: list[str] = typer.Option(None, "--col", help="Name of column to use for the tabular data."),
+    columns: list[str] = typer.Option(
+        None, "--col", help="Name of column to use for the tabular data."
+    ),
     output: Path = typer.Option(
         "out/data.csv", "--output", "-o", help="Destination file path."
     ),
@@ -58,9 +67,15 @@ def cli_run(
     ),
     schema_json: Optional[str] = typer.Option(None, "--schema-json"),
     schema_file: Optional[Path] = typer.Option(None, "--schema-file"),
-    sqlite_db: Optional[Path] = typer.Option(None, "--sqlite-db", help="SQLite DB file (defaults to output with .sqlite)."),
-    sqlite_table: Optional[str] = typer.Option(None, "--sqlite-table", help="Target table (defaults to CSV stem or 'data')."),
-    sqlite_replace: bool = typer.Option(False, "--sqlite-replace", help="DROP & recreate table before insert."),
+    sqlite_db: Optional[Path] = typer.Option(
+        None, "--sqlite-db", help="SQLite DB file (defaults to output with .sqlite)."
+    ),
+    sqlite_table: Optional[str] = typer.Option(
+        None, "--sqlite-table", help="Target table (defaults to CSV stem or 'data')."
+    ),
+    sqlite_replace: bool = typer.Option(
+        False, "--sqlite-replace", help="DROP & recreate table before insert."
+    ),
     # --- UPSERT options ---
     sqlite_upsert_keys: list[str] = typer.Option(
         None,
@@ -72,7 +87,9 @@ def cli_run(
         "--sqlite-upsert-update",
         help="UPSERT policy: 'all', 'none', or comma-separated columns (e.g., 'capital,continent').",
     ),
-    debug: bool = typer.Option(False, "--debug", help="Print parsed options/values for debugging"),
+    debug: bool = typer.Option(
+        False, "--debug", help="Print parsed options/values for debugging"
+    ),
 ) -> None:
     """
     Calls the existing run_once() using the provided prompt and writes raw CSV to --output.
@@ -82,7 +99,7 @@ def cli_run(
     if debug:
         raw_params = {
             "prompt": prompt,
-            "columns": columns,      # Typer gives a tuple when multiple=True
+            "columns": columns,  # Typer gives a tuple when multiple=True
             "output": output,
             "row_count": row_count,
             "sort_by": sort_by,
@@ -106,7 +123,9 @@ def cli_run(
     if not sort_by:
         sort_by = columns_hint[0]
 
-    msg = f"▶ Running with prompt: {prompt!r} - Output details: {format}, {columns_hint}"
+    msg = (
+        f"▶ Running with prompt: {prompt!r} - Output details: {format}, {columns_hint}"
+    )
     if sort_by == columns_hint[0]:
         msg = f"{msg}, we will sort by 1st column"
     else:
@@ -118,22 +137,26 @@ def cli_run(
     if format == "sqlite":
         # Parse upsert update policy
         if sqlite_upsert_update and sqlite_upsert_update not in ("all", "none"):
-            update_spec = [c.strip() for c in sqlite_upsert_update.split(",") if c.strip()]
+            update_spec = [
+                c.strip() for c in sqlite_upsert_update.split(",") if c.strip()
+            ]
         else:
             update_spec = sqlite_upsert_update or "all"
-        
+
         sink_kwargs = {
             "sink": "sqlite",
             "sqlite_db": str(sqlite_db) if sqlite_db else None,
             "sqlite_table": sqlite_table,
             "sqlite_replace": sqlite_replace,
-            "sqlite_upsert_keys": list(sqlite_upsert_keys) if sqlite_upsert_keys else None,
+            "sqlite_upsert_keys": list(sqlite_upsert_keys)
+            if sqlite_upsert_keys
+            else None,
             "sqlite_upsert_update": update_spec,  # "all" | "none" | List[str]
         }
 
     try:
         df, status = run_once(
-            prompt, 
+            prompt,
             columns=columns_hint,
             row_count=row_count,
             output=output,

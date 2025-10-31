@@ -1,6 +1,17 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Protocol, Iterable, Dict, List, runtime_checkable, Optional, Mapping, Any
+from typing import (
+    Protocol,
+    Iterable,
+    Dict,
+    List,
+    Literal,
+    Self,
+    Union,
+    runtime_checkable,
+    Optional,
+    Mapping,
+    Any,
+)
 import csv
 import sqlite3
 import os
@@ -17,7 +28,9 @@ class Sink(Protocol):
     def write(self, rows: Iterable[Row]) -> None: ...
     def close(self) -> None: ...
     def __enter__(self) -> Self: ...
-    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: Any) -> bool: ...
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: Any
+    ) -> bool: ...
 
 
 class SinkCM:
@@ -95,6 +108,7 @@ class CsvSink(SinkCM):
 # SQLite sink
 # ----------------------------
 
+
 def _qident(name: str) -> str:
     """Quote an identifier for SQLite with double quotes.
     Very small helper; does not allow embedded quotes to avoid SQLi on identifiers.
@@ -146,7 +160,9 @@ class SqliteSink(SinkCM):
         self.db_path = db_path
         self.table = table
         self.columns = columns
-        self.schema = dict(schema) if schema is not None else {c: "TEXT" for c in columns}
+        self.schema = (
+            dict(schema) if schema is not None else {c: "TEXT" for c in columns}
+        )
         self.if_not_exists = if_not_exists
         self.replace_table = replace_table
         self.journal_wal = journal_wal
@@ -185,7 +201,9 @@ class SqliteSink(SinkCM):
         if self.upsert_keys:
             idx_name = f"{self.table}__uniq__{'__'.join(self.upsert_keys)}"
             cur.execute(
-                f"CREATE UNIQUE INDEX IF NOT EXISTS {_qident(idx_name)} ON {_qident(self.table)} (" + ", ".join(_qident(k) for k in self.upsert_keys) + ")"
+                f"CREATE UNIQUE INDEX IF NOT EXISTS {_qident(idx_name)} ON {_qident(self.table)} ("
+                + ", ".join(_qident(k) for k in self.upsert_keys)
+                + ")"
             )
             self._conn.commit()
 
@@ -203,7 +221,9 @@ class SqliteSink(SinkCM):
                 update_cols = []
             conflict = ", ".join(_qident(k) for k in self.upsert_keys)
             if update_cols:
-                set_clause = ", ".join(f"{_qident(c)}=excluded.{_qident(c)}" for c in update_cols)
+                set_clause = ", ".join(
+                    f"{_qident(c)}=excluded.{_qident(c)}" for c in update_cols
+                )
                 self._insert_sql = (
                     f"INSERT INTO {_qident(self.table)} ({cols_list}) VALUES ({placeholders}) "
                     f"ON CONFLICT({conflict}) DO UPDATE SET {set_clause}"
@@ -213,7 +233,7 @@ class SqliteSink(SinkCM):
                     f"INSERT INTO {_qident(self.table)} ({cols_list}) VALUES ({placeholders}) "
                     f"ON CONFLICT({conflict}) DO NOTHING"
                 )
-                
+
     def _flush(self) -> None:
         if not self._pending:
             return
